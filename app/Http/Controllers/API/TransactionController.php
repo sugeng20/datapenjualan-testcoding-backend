@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Traits\HasApiResponses;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+
+use function Laravel\Prompts\select;
 
 class TransactionController extends Controller
 {
@@ -15,15 +18,45 @@ class TransactionController extends Controller
 
     public function index(Request $request)
     {
+        $getTransaction = Transaction::query();
+
+        if ($request->has('search') || $request->has('sort_item_name')) {
+            $getTransaction->join('items', 'transactions.item_id', '=', 'items.id')
+                ->join('types', 'items.type_id', '=', 'types.id')
+                ->select('transactions.id', 'transactions.date', 'items.name', 'transactions.quantity_sold', 'transactions.old_stock', 'types.type', 'transactions.created_at');
+        }
+
+        if ($request->has('search') && $request->input('search') != null) {
+            try {
+                $tanggal = Carbon::parse($request->input('search'))->format('Y-m-d');
+            } catch (\Throwable $th) {
+                $tanggal = $request->input('search');
+            }
+            $getTransaction->where('items.name', 'like', '%' . $request->input('search') . '%')
+                ->orWhere('transactions.date', 'like', '%' . $tanggal . '%')
+                ->orWhere('types.type', 'like', '%' . $request->input('search') . '%')
+                ->orWhere('transactions.quantity_sold', 'like', '%' . $request->input('search') . '%')
+                ->orWhere('transactions.old_stock', 'like', '%' . $request->input('search') . '%');
+        }
+
+        if ($request->has('sort_item_name') && in_array($request->input('sort_item_name'), ['asc', 'desc'])) {
+            $getTransaction->orderBy('items.name', $request->input('sort_item_name'));
+        }
+
+        if ($request->has('sort_date') && in_array($request->input('sort_date'), ['asc', 'desc'])) {
+            $getTransaction->orderBy('date', $request->input('sort_date'));
+        }
+
+        $transction = $getTransaction->orderBy('transactions.created_at', 'asc')->paginate($request->input('limit', 10));
+        $data = [
+            'data' => $transction->items(),
+            'total' => $transction->total(),
+            'current_page' => $transction->currentPage(),
+            'last_page' => $transction->lastPage(),
+        ];
+        return $this->success($data, 'Transaction fetched successfully', 200);
+
         try {
-            $transction = Transaction::orderBy('created_at', 'asc')->with('item.type')->paginate($request->input('limit', 10));
-            $data = [
-                'data' => $transction->items(),
-                'total' => $transction->total(),
-                'current_page' => $transction->currentPage(),
-                'last_page' => $transction->lastPage(),
-            ];
-            return $this->success($data, 'Transaction fetched successfully', 200);
         } catch (\Throwable $th) {
             return $this->error($th, 422);
         }
