@@ -14,6 +14,11 @@ class Type extends Model
         'type'
     ];
 
+    public function items()
+    {
+        return $this->hasMany(Item::class);
+    }
+
     protected static function boot()
     {
         parent::boot();

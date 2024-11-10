@@ -16,6 +16,11 @@ class Item extends Model
         'type_id',
     ];
 
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
     public function type()
     {
         return $this->belongsTo(Type::class);
